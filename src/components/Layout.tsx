@@ -42,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-4">
             <MobileSidebarToggle onClick={() => setSidebarOpen(!sidebarOpen)} />
-            <h1>Gestion des Paiements</h1>
+            <h1>Gestion des finances publiques</h1>
           </div>
           <Button
             variant="ghost"

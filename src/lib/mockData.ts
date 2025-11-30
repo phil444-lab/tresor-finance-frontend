@@ -214,7 +214,7 @@ export const getMockDashboardStats = (): DashboardStats => {
   
   const totalAmount = mockPayments
     .filter(p => p.status === 'validated')
-    .reduce((sum, p) => sum + p.montant, 0);
+    .reduce((sum, p) => sum + p.montant.toLocaleString('fr-FR'), 0);
 
   return {
     paymentsToday,

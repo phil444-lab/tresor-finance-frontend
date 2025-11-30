@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { InputDate } from '../../components/ui/input-date';
 import { Badge } from '../../components/ui/badge';
 import { 
   Select,
@@ -12,27 +13,70 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 import { Plus, Search, Eye } from 'lucide-react';
-import { mockPayments } from '../../lib/mockData';
-import { PaymentStatus } from '../../types';
+import { paymentsApi } from '../../lib/api';
+import { Payment, PaymentStatus } from '../../types';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/Table';
 
 export function PaymentsList() {
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchMatricule, setSearchMatricule] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const filteredPayments = mockPayments.filter(payment => {
-    const matchesMatricule = payment.matricule.toLowerCase().includes(searchMatricule.toLowerCase()) ||
-                             payment.fullName.toLowerCase().includes(searchMatricule.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
-    const matchesDate = !dateFilter || payment.date.startsWith(dateFilter);
-    
+  // Charger les paiements API
+  useEffect(() => {
+    const loadPayments = async () => {
+      try {
+        setLoading(true);
+        const res = await paymentsApi.getAll(); 
+        setPayments(res.data || []);
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        setError("Erreur lors du chargement des paiements.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPayments();
+  }, []);
+
+  // Filtres dynamiques
+  const filteredPayments = payments.filter((payment) => {
+    const matchesMatricule =
+      payment.matricule.toLowerCase().includes(searchMatricule.toLowerCase()) ||
+      payment.fullName.toLowerCase().includes(searchMatricule.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === 'all' || payment.status === statusFilter;
+
+    const matchesDate =
+      !dateFilter || payment.createdAt.startsWith(dateFilter);
+
     return matchesMatricule && matchesStatus && matchesDate;
   });
 
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+
+  const paginatedPayments = filteredPayments.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchMatricule, statusFilter, dateFilter]);
+
+  // Badge Statut
   const getStatusBadge = (status: PaymentStatus) => {
     switch (status) {
-      case 'validated':
+      case 'success':
         return <Badge className="bg-primary text-primary-foreground">Validé</Badge>;
       case 'pending':
         return <Badge className="bg-accent text-accent-foreground">En attente</Badge>;
@@ -41,20 +85,37 @@ export function PaymentsList() {
     }
   };
 
+  // Loading / Erreur
+  if (loading) {
+    return <p className="text-center py-32">Chargement des données...</p>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-32">
+        <p className="text-destructive">{error}</p>
+        <Button onClick={() => window.location.reload()} className="mt-4">
+          Réessayer
+        </Button>
+      </div>
+    );
+  }
+
+  // Rendu principal
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1>Gestion des Paiements</h1>
+          <h1>Opérations de dépense</h1>
           <p className="text-muted-foreground mt-1">
-            Consultez et gérez tous les paiements
+            Consultez et gérez tous les paiements de salaires effectués via la blockchain.
           </p>
         </div>
         <Link to="/payments/create">
-          <Button className="gap-2">
+          <Button className="gap-2 text-md">
             <Plus className="w-4 h-4" />
-            Créer un paiement
+            Créer une transaction
           </Button>
         </Link>
       </div>
@@ -62,12 +123,13 @@ export function PaymentsList() {
       {/* Filters */}
       <Card className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Search */}
           <div>
             <label className="text-sm mb-2 block">Rechercher</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Matricule ou nom..."
+                placeholder="Insérer un mot clé"
                 value={searchMatricule}
                 onChange={(e) => setSearchMatricule(e.target.value)}
                 className="pl-10"
@@ -75,25 +137,26 @@ export function PaymentsList() {
             </div>
           </div>
 
+          {/* Status Filter */}
           <div>
             <label className="text-sm mb-2 block">Statut</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full border border-gray-300 rounded-md">
                 <SelectValue placeholder="Tous les statuts" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="validated">Validé</SelectItem>
+                <SelectItem value="success">Validé</SelectItem>
                 <SelectItem value="pending">En attente</SelectItem>
                 <SelectItem value="failed">Échoué</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
+          {/* Date */}
           <div>
             <label className="text-sm mb-2 block">Date</label>
-            <Input
-              type="date"
+            <InputDate
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             />
@@ -108,14 +171,15 @@ export function PaymentsList() {
             <TableRow>
               <TableHead>Matricule</TableHead>
               <TableHead>Nom Complet</TableHead>
-              <TableHead>Banque</TableHead>
               <TableHead>Montant</TableHead>
               <TableHead>Statut</TableHead>
+              <TableHead>Blockchain</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Créé par</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {filteredPayments.length === 0 ? (
               <TableRow>
@@ -124,27 +188,28 @@ export function PaymentsList() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredPayments.map((payment) => (
+              paginatedPayments.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell>{payment.matricule}</TableCell>
                   <TableCell>{payment.fullName}</TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground truncate block max-w-xs">
-                      {payment.bankInfo.split(' - ')[0]}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {payment.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    { payment.montant.toLocaleString('fr-FR') } F CFA
                   </TableCell>
                   <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                  <TableCell>{getStatusBadge(payment.submit)}</TableCell>
                   <TableCell>
-                    {new Date(payment.date).toLocaleDateString('fr-FR', {
+                    {new Date(payment.createdAt).toLocaleString('fr-FR', {
                       day: '2-digit',
                       month: '2-digit',
-                      year: 'numeric'
-                    })}
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    }).replace(' ', ' à ')}
                   </TableCell>
-                  <TableCell>{payment.createdBy}</TableCell>
+                  
+                  <TableCell>{payment.user?.fullName || "—"}</TableCell>
+
                   <TableCell>
                     <Link to={`/payments/${payment.id}`}>
                       <Button variant="ghost" size="sm" className="gap-2">
@@ -159,15 +224,29 @@ export function PaymentsList() {
           </TableBody>
         </Table>
 
-        {/* Stats */}
-        <div className="mt-6 pt-6 border-t border-border flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            {filteredPayments.length} paiement{filteredPayments.length > 1 ? 's' : ''} trouvé{filteredPayments.length > 1 ? 's' : ''}
+        {/* Pagination */}
+        <div className="mt-6 flex items-center justify-between">
+          <Button
+            variant="outline"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          >
+            Précédent
+          </Button>
+
+          <span className="text-sm text-muted-foreground">
+            Page {currentPage} sur {totalPages}
           </span>
-          <span className="text-muted-foreground">
-            Montant total : {filteredPayments.reduce((sum, p) => sum + p.montant, 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-          </span>
+
+          <Button
+            variant="outline"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          >
+            Suivant
+          </Button>
         </div>
+
       </Card>
     </div>
   );

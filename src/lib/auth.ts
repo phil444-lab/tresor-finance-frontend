@@ -1,48 +1,48 @@
-import { User } from '../types';
+import { User, UserRole } from '../types';
+import { authApi, apiClient } from './api';
 
 const STORAGE_KEY = 'tresor_user';
 
-// Mock users for authentication
-const mockUsers = [
-  {
-    id: '1',
-    fullName: 'Jean Dupont',
-    password: 'password123',
-    role: 'TMSP' as const,
-    email: 'jean.dupont@tresor.gov'
-  },
-  {
-    id: '2',
-    fullName: 'Marie Martin',
-    password: 'password123',
-    role: 'TrRegionMSP' as const,
-    email: 'marie.martin@tresor.gov'
-  },
-  {
-    id: '3',
-    fullName: 'Pierre Durand',
-    password: 'password123',
-    role: 'CpeMSP' as const,
-    email: 'pierre.durand@tresor.gov'
+export const login = async (fullName: string, password: string): Promise<User | null> => {
+  try {
+    const response = await authApi.login({ fullName, password });
+    
+    if (response.success) {
+      // Stocker les tokens
+      apiClient.setToken(response.data.token);
+      apiClient.setRefreshToken(response.data.refreshToken);
+      
+      // Stocker les informations utilisateur
+      const user: User = {
+        id: response.data.user.id,
+        fullName: response.data.user.fullName,
+        role: response.data.user.role as UserRole,
+      };
+      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      return user;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Login error:', error);
+    return null;
   }
-];
-
-export const login = (fullName: string, password: string): User | null => {
-  const user = mockUsers.find(
-    u => u.fullName === fullName && u.password === password
-  );
-
-  if (user) {
-    const { password: _, ...userWithoutPassword } = user;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutPassword));
-    return userWithoutPassword;
-  }
-
-  return null;
 };
 
-export const logout = () => {
-  localStorage.removeItem(STORAGE_KEY);
+export const logout = async () => {
+  try {
+    // Appeler l'API de logout pour invalider le token côté serveur
+    await authApi.logout();
+  } catch (error) {
+    console.error('Logout API error:', error);
+    // Continuer même si l'API échoue
+  } finally {
+    // Nettoyer le stockage local
+    localStorage.removeItem(STORAGE_KEY);
+    apiClient.setToken(null);
+    apiClient.setRefreshToken(null);
+  }
 };
 
 export const getCurrentUser = (): User | null => {

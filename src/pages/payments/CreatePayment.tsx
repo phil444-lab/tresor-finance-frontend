@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -13,75 +13,123 @@ import {
 } from '../../components/ui/select';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { mockEmployees } from '../../lib/mockData';
+import { employeesApi, paymentsApi } from '../../lib/api';
 import { toast } from 'sonner';
 
 export function CreatePayment() {
   const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     matricule: '',
     fullName: '',
     bankInfo: '',
     montant: ''
   });
-  const [loading, setLoading] = useState(false);
 
-  const handleMatriculeChange = (matricule: string) => {
-    const employee = mockEmployees.find(emp => emp.matricule === matricule);
-    
-    if (employee) {
+  const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await employeesApi.getAll() as any;
+        
+        setEmployees(res.data || []);
+      } catch (error: any) {
+        toast.error("Erreur lors du chargement des employés");
+      } finally {
+        setLoadingEmployees(false);
+      }
+    };
+
+    fetchEmployees();
+  }, []);
+
+  const handleMatriculeChange = async (matricule: string) => {
+    if (!matricule) return;
+
+    try {
+      const res = await employeesApi.getByMatricule(matricule) as any;
+      const employee = res.data;
+
       setFormData({
         matricule: employee.matricule,
         fullName: employee.fullName,
-        bankInfo: `BNP - IBAN: FR76 ${Math.random().toString().slice(2, 18)}`,
-        montant: ''
+        bankInfo: employee.bankInfo,
+        montant: '',
       });
-    } else {
+    } catch (error) {
+      toast.error("Employé introuvable pour ce matricule");
       setFormData({
         matricule,
         fullName: '',
         bankInfo: '',
-        montant: ''
+        montant: '',
       });
     }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      toast.success('Paiement créé avec succès', {
-        description: `Le paiement pour ${formData.fullName} a été enregistré.`
-      });
-      navigate('/payments');
-    }, 1500);
   };
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  return (
-    <div className="space-y-6 flex items-center justify-center min-h-[calc(100vh-8rem)]">
-      <div className="w-full max-w-2xl">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link to="/payments">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1>Créer un Paiement</h1>
-            <p className="text-muted-foreground mt-1">
-              Enregistrez un nouveau paiement dans le système
-            </p>
-          </div>
-        </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Vérification côté client
+    if (
+      !formData.matricule ||
+      !formData.fullName ||
+      !formData.bankInfo ||
+      !formData.montant ||
+      parseFloat(formData.montant) <= 0
+    ) {
+      toast.error("Veuillez remplir tous les champs correctement.");
+      return;
+    }
+    
+    setLoading(true);
 
+    try {
+      const payload = {
+        matricule: formData.matricule,
+        fullName: formData.fullName,
+        bankInfo: formData.bankInfo,
+        montant: Number(formData.montant),
+      };
+
+      const res = await paymentsApi.create(payload);
+
+      toast.success("Paiement créé avec succès", {
+        description: res.message
+      });
+
+      navigate('/payments');
+    } catch (error: any) {
+      toast.error("Erreur : " + (error.message || "Impossible de créer le paiement"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 min-h-[calc(100vh-8rem)] px-4 py-6">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        <Link to="/payments">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        </Link>
+        <div>
+          <h1>Créer un Paiement</h1>
+          <p className="text-muted-foreground mt-1">
+            Enregistrez un nouveau paiement dans le système
+          </p>
+        </div>
+      </div>
+
+      <div className="w-full max-w-2xl mx-auto">
         {/* Form */}
         <Card className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -91,15 +139,22 @@ export function CreatePayment() {
                 Matricule <span className="text-destructive">*</span>
               </Label>
               <Select value={formData.matricule} onValueChange={handleMatriculeChange} required>
-                <SelectTrigger>
+                <SelectTrigger className="w-full border border-gray-300 rounded-md">
                   <SelectValue placeholder="Sélectionnez un matricule" />
                 </SelectTrigger>
+
                 <SelectContent>
-                  {mockEmployees.map(emp => (
-                    <SelectItem key={emp.id} value={emp.matricule}>
-                      {emp.matricule} - {emp.fullName}
-                    </SelectItem>
-                  ))}
+                  {loadingEmployees ? (
+                    <div className="p-2 text-sm text-muted-foreground">Chargement...</div>
+                  ) : employees.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">Aucun employé trouvé</div>
+                  ) : (
+                    employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.matricule}>
+                        {emp.matricule} - {emp.fullName}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">
@@ -143,13 +198,13 @@ export function CreatePayment() {
             {/* Amount */}
             <div className="space-y-2">
               <Label htmlFor="montant">
-                Montant (€) <span className="text-destructive">*</span>
+                Montant (F CFA) <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="montant"
                 type="number"
-                step="0.01"
-                placeholder="3500.50"
+                step="1"
+                placeholder="100000"
                 value={formData.montant}
                 onChange={(e) => handleChange('montant', e.target.value)}
                 required
@@ -167,6 +222,12 @@ export function CreatePayment() {
 
             {/* Actions */}
             <div className="flex gap-3 pt-4">
+              <Link to="/payments" className="flex-1">
+                <Button type="button" variant="outline" className="w-full">
+                  Annuler
+                </Button>
+              </Link>
+
               <Button
                 type="submit"
                 className="flex-1 gap-2"
@@ -175,11 +236,6 @@ export function CreatePayment() {
                 <Save className="w-4 h-4" />
                 {loading ? 'Enregistrement...' : 'Créer le paiement'}
               </Button>
-              <Link to="/payments" className="flex-1">
-                <Button type="button" variant="outline" className="w-full">
-                  Annuler
-                </Button>
-              </Link>
             </div>
           </form>
         </Card>

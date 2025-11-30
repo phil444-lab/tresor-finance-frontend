@@ -1,23 +1,22 @@
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { 
-  TrendingUp, 
-  Clock, 
-  CheckCircle2, 
-  XCircle,
-  Plus,
-  Search,
-  Users,
-  FileText,
-  Euro
+import {
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { 
-  getMockDashboardStats, 
-  getPaymentsByDay, 
-  getPaymentsByStatus,
-  mockPayments 
-} from '../../lib/mockData';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
+import { paymentsApi } from '../../lib/api';
+import { useState, useEffect } from 'react';
+import { Payment, DashboardStats } from '../../types';
 import { 
   BarChart, 
   Bar, 
@@ -28,18 +27,113 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
 import { Badge } from '../../components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/Table';
 
 export function TMSPDashboard() {
-  const stats = getMockDashboardStats();
-  const paymentsByDay = getPaymentsByDay();
-  const paymentsByStatus = getPaymentsByStatus();
+  const [stats, setStats] = useState<DashboardStats>({
+    paymentsToday: 0,
+    paymentsPending: 0,
+    paymentsValidated: 0,
+    paymentsFailed: 0,
+    totalAmount: 0
+  });
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 20 }, (_, i) => currentYear - i);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [allPayments, setAllPayments] = useState<Payment[]>([]);
+  const [paymentsByMonth, setPaymentsByMonth] = useState<any[]>([]);
+  const [paymentsByStatus, setPaymentsByStatus] = useState<any[]>([]);
+  const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const recentPayments = mockPayments.slice(0, 5);
+  // Fonctions utilitaires pour calculer les statistiques
+  const calculateStats = (payments: Payment[]): DashboardStats => {
+    const today = new Date().toISOString().split('T')[0];
+    const paymentsToday = payments.filter(p =>
+      p.createdAt && p.createdAt.startsWith(today)
+    ).length;
+
+    const paymentsPending = payments.filter(p => p.submit === 'pending').length;
+    const paymentsValidated = payments.filter(p => p.submit === 'success').length;
+    const paymentsFailed = payments.filter(p => p.submit === 'failed').length;
+
+    const totalAmount = payments
+      .filter(p => p.submit === 'success')
+      .reduce((sum, p) => sum + p.montant, 0);
+
+    return {
+      paymentsToday,
+      paymentsPending,
+      paymentsValidated,
+      paymentsFailed,
+      totalAmount
+    };
+  };
+
+  const calculatePaymentsByMonth = (payments: Payment[], year: number) => {
+    const months = [
+      'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+      'Juil', 'Aou', 'Sep', 'Oct', 'Nov', 'Déc'
+    ];
+
+    const data = Array(12).fill(0).map((_, i) => ({
+      month: months[i],
+      count: 0,
+    }));
+
+    payments.forEach(p => {
+      if (!p.createdAt) return;
+      const date = new Date(p.createdAt);
+      if (date.getFullYear() === year) {
+        data[date.getMonth()].count += 1;
+      }
+    });
+
+    return data;
+  };
+
+  const calculatePaymentsByStatus = (payments: Payment[]) => {
+    return [
+      { name: 'Validés', value: payments.filter(p => p.submit === 'success').length, color: '#1A3C34' },
+      { name: 'En attente', value: payments.filter(p => p.submit === 'pending').length, color: '#C5A557' },
+      { name: 'Échoués', value: payments.filter(p => p.submit === 'failed').length, color: '#DC2626' }
+    ];
+  };
+
+  // Charger les données au montage
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const response = await paymentsApi.getAll() as { data?: Payment[]; success?: boolean };
+        const payments: Payment[] = response.data || (response as Payment[]);
+
+        await new Promise(res => setTimeout(res, 1000));
+        
+        setStats(calculateStats(payments));
+        setPaymentsByMonth(calculatePaymentsByMonth(payments, selectedYear));
+        setPaymentsByStatus(calculatePaymentsByStatus(payments));
+        setRecentPayments(payments.slice(0, 6));
+        setAllPayments(payments);
+        setError(null);
+      } catch (err) {
+        setError('Erreur lors du chargement des données');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!allPayments) return;
+    setPaymentsByMonth(calculatePaymentsByMonth(allPayments, selectedYear));
+  }, [selectedYear]);
 
   const statCards = [
     {
@@ -72,36 +166,9 @@ export function TMSPDashboard() {
     }
   ];
 
-  const quickActions = [
-    {
-      title: 'Créer un paiement',
-      icon: Plus,
-      path: '/payments/create',
-      color: 'bg-primary text-primary-foreground hover:bg-primary/90'
-    },
-    {
-      title: 'Rechercher',
-      icon: Search,
-      path: '/payments',
-      color: 'bg-accent text-accent-foreground hover:bg-accent/90'
-    },
-    {
-      title: 'Employés',
-      icon: Users,
-      path: '/employees',
-      color: 'bg-secondary text-secondary-foreground hover:bg-secondary/90'
-    },
-    {
-      title: 'Schéma Comptable',
-      icon: FileText,
-      path: '/accounting-schema',
-      color: 'bg-muted text-muted-foreground hover:bg-muted/80'
-    }
-  ];
-
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'validated':
+      case 'success':
         return <Badge className="bg-primary text-primary-foreground">Validé</Badge>;
       case 'pending':
         return <Badge className="bg-accent text-accent-foreground">En attente</Badge>;
@@ -112,13 +179,54 @@ export function TMSPDashboard() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1>Dashboard du Trésorier</h1>
+          <p className="text-muted-foreground mt-1">
+            Vue d'ensemble de la gestion des finances publiques
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">Chargement des données...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1>Dashboard du Trésorier</h1>
+          <p className="text-muted-foreground mt-1">
+            Vue d'ensemble de la gestion des finances publiques
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto" />
+            <p className="mt-4 text-destructive">{error}</p>
+            <Button onClick={() => window.location.reload()} className="mt-4">
+              Réessayer
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1>Dashboard TMSP</h1>
+        <h1>Dashboard du Trésorier</h1>
         <p className="text-muted-foreground mt-1">
-          Vue d'ensemble de la gestion des paiements
+          Vue d'ensemble de la gestion des finances publiques
         </p>
       </div>
 
@@ -128,8 +236,8 @@ export function TMSPDashboard() {
           <Card key={index} className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
-                <h3>{stat.value}</h3>
+                <p className="text-md text-muted-foreground mb-1">{stat.title}</p>
+                <p className="text-2xl font-bold">{stat.value}</p>
               </div>
               <div className={`w-12 h-12 rounded-full ${stat.bgColor} flex items-center justify-center`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
@@ -139,54 +247,35 @@ export function TMSPDashboard() {
         ))}
       </div>
 
-      {/* Total Amount Card */}
-      <Card className="p-6 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm opacity-90 mb-1">Montant Total Validé</p>
-            <h2>{stats.totalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</h2>
-          </div>
-          <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-            <Euro className="w-8 h-8" />
-          </div>
-        </div>
-      </Card>
-
-      {/* Quick Actions */}
-      <div>
-        <h3 className="mb-4">Actions Rapides</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action, index) => (
-            <Link key={index} to={action.path}>
-              <Button
-                className={`w-full h-24 flex flex-col gap-2 ${action.color}`}
-                variant="default"
-              >
-                <action.icon className="w-6 h-6" />
-                <span>{action.title}</span>
-              </Button>
-            </Link>
-          ))}
-        </div>
-      </div>
-
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Bar Chart */}
         <Card className="p-6">
-          <h3 className="mb-4">Paiements par Jour</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Opérations effectuées par Mois ({selectedYear})</h3>
+            <Select
+              value={String(selectedYear)}
+              onValueChange={(value: string) => setSelectedYear(Number(value))}
+            >
+              <SelectTrigger className="w-[150px] font-semibold border border-gray-300 rounded-md">
+                <SelectValue placeholder="Choisir l'année" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={paymentsByDay}>
+            <BarChart data={paymentsByMonth}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E6E6E6" />
-              <XAxis dataKey="day" />
+              <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
-                  border: '1px solid #CCCCCC',
-                  borderRadius: '8px'
-                }}
-              />
+              <Tooltip />
               <Bar dataKey="count" fill="#1A3C34" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -194,7 +283,7 @@ export function TMSPDashboard() {
 
         {/* Pie Chart */}
         <Card className="p-6">
-          <h3 className="mb-4">Répartition par Statut</h3>
+          <h3 className="mb-4 text-lg font-semibold">Transactions validées dans la Blockchain</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
@@ -220,9 +309,9 @@ export function TMSPDashboard() {
       {/* Recent Payments */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3>Paiements Récents</h3>
+          <h3 className='text-lg font-semibold'>Récentes opérations de dépense</h3>
           <Link to="/payments">
-            <Button variant="outline" size="sm">
+            <Button className="font-semibold" variant="outline" size="sm">
               Voir tout
             </Button>
           </Link>
@@ -233,7 +322,7 @@ export function TMSPDashboard() {
               <TableHead>Matricule</TableHead>
               <TableHead>Nom</TableHead>
               <TableHead>Montant</TableHead>
-              <TableHead>Statut</TableHead>
+              <TableHead>Validation</TableHead>
               <TableHead>Date</TableHead>
             </TableRow>
           </TableHeader>
@@ -242,10 +331,17 @@ export function TMSPDashboard() {
               <TableRow key={payment.id}>
                 <TableCell>{payment.matricule}</TableCell>
                 <TableCell>{payment.fullName}</TableCell>
-                <TableCell>{payment.montant.toLocaleString('fr-FR')} €</TableCell>
+                <TableCell>{ payment.montant.toLocaleString('fr-FR') } F CFA</TableCell>
                 <TableCell>{getStatusBadge(payment.status)}</TableCell>
                 <TableCell>
-                  {new Date(payment.date).toLocaleDateString('fr-FR')}
+                  {new Date(payment.createdAt).toLocaleString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  }).replace(' ', ' à ')}
                 </TableCell>
               </TableRow>
             ))}

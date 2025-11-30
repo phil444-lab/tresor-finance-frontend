@@ -1,421 +1,147 @@
 import { Card } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { 
-  FileText, 
-  Database, 
-  CheckSquare, 
-  Link2, 
-  Archive,
-  ArrowRight,
-  CircleDot,
-  BookOpen
-} from 'lucide-react';
-import { useState } from 'react';
-import { mockPayments } from '../lib/mockData';
-import { 
-  mockAccountingEntries, 
-  getEntriesByPaymentId, 
-  getTotalDebit, 
-  getTotalCredit, 
-  getBalance 
-} from '../lib/accountingData';
+import { useEffect, useState } from 'react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/Table';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { paymentsApi } from '../lib/api';
+import { AccountingEntry } from '../types';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 export function AccountingSchema() {
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string>(mockPayments[0]?.id || '');
+  const [entries, setEntries] = useState<AccountingEntry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const itemsPerPage = 10;
 
-  const steps = [
-    {
-      id: 1,
-      title: 'Initiation',
-      icon: FileText,
-      color: 'text-accent bg-accent/10',
-      description: 'Création de la demande de paiement',
-      details: [
-        'Saisie des informations employé',
-        'Validation du matricule',
-        'Vérification des informations bancaires',
-        'Calcul du montant à verser'
-      ]
-    },
-    {
-      id: 2,
-      title: 'Enregistrement',
-      icon: Database,
-      color: 'text-primary bg-primary/10',
-      description: 'Stockage dans la base de données',
-      details: [
-        'Création de l\'enregistrement Prisma',
-        'Attribution d\'un identifiant unique',
-        'Horodatage de la transaction',
-        'Association à l\'utilisateur créateur'
-      ]
-    },
-    {
-      id: 3,
-      title: 'Validation',
-      icon: CheckSquare,
-      color: 'text-primary bg-primary/10',
-      description: 'Contrôle et approbation',
-      details: [
-        'Vérification par le contrôleur',
-        'Validation des montants',
-        'Approbation hiérarchique',
-        'Marquage comme "validé"'
-      ]
-    },
-    {
-      id: 4,
-      title: 'Blockchain',
-      icon: Link2,
-      color: 'text-accent bg-accent/10',
-      description: 'Enregistrement sur Hyperledger Fabric',
-      details: [
-        'Création de la transaction blockchain',
-        'Attribution du Transaction ID',
-        'Inclusion dans un bloc',
-        'Génération du Block Hash'
-      ]
-    },
-    {
-      id: 5,
-      title: 'Archivage',
-      icon: Archive,
-      color: 'text-primary bg-primary/10',
-      description: 'Conservation immuable',
-      details: [
-        'Traçabilité complète garantie',
-        'Historique des modifications',
-        'Preuve cryptographique',
-        'Audit trail permanent'
-      ]
-    }
-  ];
+  useEffect(() => {
+    const fetchEntries = async () => {
+      setLoadingEntries(true);
+      try {
+        const res = await paymentsApi.getAccountingEntries();
+        setEntries(res.data || []);
+      } catch (err) {
+        console.error("Erreur lors du chargement des écritures:", err);
+        setEntries([]);
+      } finally {
+        setLoadingEntries(false);
+      }
+    };
+    fetchEntries();
+  }, []);
 
-  const selectedPayment = mockPayments.find(p => p.id === selectedPaymentId);
-  const entries = getEntriesByPaymentId(selectedPaymentId);
-  const totalDebit = getTotalDebit(entries);
-  const totalCredit = getTotalCredit(entries);
-  const balance = getBalance(entries);
+  const filteredEntries = entries.filter(e => {
+    const search = searchTerm.toLowerCase();
+    return (
+      e.pieceNumber.toLowerCase().includes(search) ||
+      e.description.toLowerCase().includes(search) ||
+      e.account.toLowerCase().includes(search) ||
+      new Date(e.date).toLocaleDateString('fr-FR').includes(search)
+    );
+  });
+
+  const sortedEntries = [...filteredEntries].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  const totalPages = Math.ceil(sortedEntries.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedEntries = sortedEntries.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1>Schéma Comptable des Transactions</h1>
-        <p className="text-muted-foreground mt-1">
-          Processus complet de traitement d'une transaction de paiement
-        </p>
-      </div>
-
-      {/* Introduction Card */}
-      <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
-        <h3 className="mb-3">Vue d'ensemble du processus</h3>
-        <p className="text-muted-foreground">
-          Chaque paiement du Trésor Public suit un processus rigoureux en 5 étapes, 
-          garantissant la traçabilité, la sécurité et la conformité. 
-          L'utilisation de la blockchain Hyperledger Fabric assure l'immuabilité 
-          et la transparence des opérations.
-        </p>
-      </Card>
-
-      {/* Flow Diagram */}
-      <div className="relative">
-        {/* Connecting Line */}
-        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-border hidden lg:block" />
-
-        {/* Steps */}
-        <div className="space-y-8">
-          {steps.map((step, index) => (
-            <div key={step.id} className="relative">
-              {/* Step Card */}
-              <Card className={`p-6 lg:w-[calc(50%-3rem)] ${
-                index % 2 === 0 ? 'lg:mr-auto' : 'lg:ml-auto'
-              }`}>
-                <div className="flex items-start gap-4">
-                  {/* Icon */}
-                  <div className={`w-14 h-14 rounded-xl ${step.color} flex items-center justify-center flex-shrink-0`}>
-                    <step.icon className="w-7 h-7" />
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                        <span className="text-sm">{step.id}</span>
-                      </div>
-                      <h3>{step.title}</h3>
-                    </div>
-                    
-                    <p className="text-muted-foreground mb-4">
-                      {step.description}
-                    </p>
-
-                    <div className="space-y-2">
-                      {step.details.map((detail, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-sm">
-                          <CircleDot className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
-                          <span>{detail}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Step Number Badge (Desktop) */}
-              <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg z-10">
-                {step.id}
-              </div>
-
-              {/* Arrow (Mobile) */}
-              {index < steps.length - 1 && (
-                <div className="lg:hidden flex justify-center my-4">
-                  <ArrowRight className="w-6 h-6 text-muted-foreground rotate-90" />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Journal Comptable Section */}
-      <div className="mt-12">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-            <BookOpen className="w-6 h-6 text-accent" />
-          </div>
-          <div>
-            <h2>Journal Comptable</h2>
-            <p className="text-muted-foreground">
-              Écritures comptables et balance pour chaque paiement
-            </p>
+      <h1 className="font-medium text-2xl">Livre-Journal des Opérations</h1>
+      
+      <Card className="p-6">
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher par n° pièce, libellé, compte ou date..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pl-10"
+            />
           </div>
         </div>
 
-        {/* Payment Selector */}
-        <Card className="p-6 mb-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm min-w-[150px]">Sélectionner un paiement :</label>
-            <Select value={selectedPaymentId} onValueChange={setSelectedPaymentId}>
-              <SelectTrigger className="max-w-md">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {mockPayments.map(payment => (
-                  <SelectItem key={payment.id} value={payment.id}>
-                    {payment.matricule} - {payment.fullName} ({payment.montant.toLocaleString('fr-FR')} €)
-                  </SelectItem>
+
+        {loadingEntries ? (
+          <p>Chargement des écritures...</p>
+        ) : sortedEntries.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Aucune écriture disponible
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Date</TableHead>
+                  <TableHead className="w-[120px]">N° Pièce</TableHead>
+                  <TableHead>Libellé</TableHead>
+                  <TableHead className="w-[130px]">Type d'opération</TableHead>
+                  <TableHead className="w-[120px]">Compte</TableHead>
+                  <TableHead className="text-right w-[120px]">Montant (F CFA)</TableHead>
+                  <TableHead className="w-[100px]">Mode de règlement</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {paginatedEntries.map(e => (
+                  <TableRow key={e.id}>
+                    <TableCell className="font-medium">
+                      {new Date(e.date).toLocaleDateString('fr-FR')}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{e.pieceNumber}</TableCell>
+                    <TableCell>{e.description}</TableCell>
+                    <TableCell>
+                      <span className="px-2 py-1 rounded-md text-sm bg-accent text-orange-800">
+                        Décaissement
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-mono font-semibold">
+                      {e.debit > 0 ? `(D) ${e.account}` : `(C) ${e.account}`}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {(e.debit > 0 ? e.debit : e.credit).toLocaleString('fr-FR')}
+                    </TableCell>
+                    <TableCell>Virement Bancaire</TableCell>
+                  </TableRow>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </Card>
+              </TableBody>
+            </Table>
 
-        {/* Payment Details */}
-        {selectedPayment && (
-          <Card className="p-6 mb-6 bg-gradient-to-br from-primary/5 to-accent/5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Bénéficiaire</p>
-                <p>{selectedPayment.fullName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Matricule</p>
-                <p>{selectedPayment.matricule}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Montant Total</p>
-                <p className="text-lg text-primary">
-                  {selectedPayment.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                </p>
+            <div className="flex items-center justify-between mt-8">
+              <p className="text-sm font-medium">
+                Page {currentPage} sur {totalPages} ({sortedEntries.length} entrées)
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Précédent
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Suivant
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
             </div>
-          </Card>
+          </div>
         )}
-
-        {/* Accounting Entries Table */}
-        <Card className="p-6">
-          <h3 className="mb-4">Écritures Comptables</h3>
-          {entries.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucune écriture comptable disponible pour ce paiement
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>N° Écriture</TableHead>
-                    <TableHead className="text-right">Débit (€)</TableHead>
-                    <TableHead className="text-right">Crédit (€)</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Agent Responsable</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        {new Date(entry.date).toLocaleString('fr-FR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">{entry.entryNumber}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {entry.debit > 0 ? (
-                          <span className="text-primary">
-                            {entry.debit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {entry.credit > 0 ? (
-                          <span className="text-accent">
-                            {entry.credit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{entry.description}</TableCell>
-                      <TableCell>{entry.agent}</TableCell>
-                    </TableRow>
-                  ))}
-                  {/* Balance Row */}
-                  <TableRow className="bg-muted/50">
-                    <TableCell colSpan={2}>
-                      <strong>Total / Balance</strong>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <strong className="text-primary">
-                        {totalDebit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                      </strong>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <strong className="text-accent">
-                        {totalCredit.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                      </strong>
-                    </TableCell>
-                    <TableCell colSpan={2}>
-                      <strong>
-                        Solde : {Math.abs(balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                        {balance === 0 && ' (Équilibré)'}
-                      </strong>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-
-              {/* Balance Info */}
-              <div className="mt-6 p-4 bg-muted/30 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  <strong>Note pédagogique :</strong> Le journal comptable présente l'ensemble des écritures 
-                  liées à ce paiement. Chaque opération est enregistrée en partie double (débit/crédit) 
-                  garantissant l'équilibre comptable. Les écritures tracent le flux complet depuis 
-                  l'engagement jusqu'à l'ordonnancement final.
-                </p>
-              </div>
-            </>
-          )}
-        </Card>
-      </div>
-
-      {/* Technical Details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-        <Card className="p-6">
-          <h4 className="mb-3">Technologies Utilisées</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span><strong>Node.js :</strong> Backend API REST</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span><strong>Prisma :</strong> ORM pour base de données</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span><strong>Hyperledger Fabric :</strong> Blockchain privée</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span><strong>PostgreSQL :</strong> Base de données relationnelle</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h4 className="mb-3">Avantages du Système</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent" />
-              <span><strong>Immuabilité :</strong> Impossible de modifier l'historique</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent" />
-              <span><strong>Traçabilité :</strong> Audit complet des opérations</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent" />
-              <span><strong>Sécurité :</strong> Chiffrement cryptographique</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent" />
-              <span><strong>Conformité :</strong> Standards du secteur public</span>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Legend */}
-      <Card className="p-6 bg-muted/30">
-        <h4 className="mb-4">Légende des Statuts</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-              <CircleDot className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <p className="text-sm">En attente</p>
-              <p className="text-xs text-muted-foreground">En cours de traitement</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <CheckSquare className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm">Validé</p>
-              <p className="text-xs text-muted-foreground">Approuvé et enregistré</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-              <CircleDot className="w-5 h-5 text-destructive" />
-            </div>
-            <div>
-              <p className="text-sm">Échoué</p>
-              <p className="text-xs text-muted-foreground">Erreur de traitement</p>
-            </div>
-          </div>
-        </div>
       </Card>
     </div>
   );

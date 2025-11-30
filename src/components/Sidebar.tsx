@@ -1,9 +1,9 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   CreditCard, 
   Users, 
-  FileText, 
+  BookOpenText, 
   LogOut,
   Menu
 } from 'lucide-react';
@@ -16,35 +16,56 @@ interface SidebarProps {
   onNavigate?: () => void;
 }
 
+const getRoleLabel = (role: string) => {
+  const org = role.split('_')[0];
+  switch (org) {
+    case 'TMSP': return 'Trésorier';
+    case 'TrRegionMSP': return 'Trésorier Régional';
+    case 'CpeMSP': return 'Comptable Principal d\'État';
+    default: return org;
+  }
+};
+
 export function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const user = getCurrentUser();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    toast.info('Déconnexion réussie', {
-      description: 'À bientôt !'
-    });
-    window.location.href = '/login';
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      toast.success('Déconnexion réussie', {
+        description: 'À bientôt !'
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Erreur lors de la déconnexion', {
+        description: 'Veuillez réessayer'
+      });
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const isActive = (path: string) => location.pathname === path;
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/payments', icon: CreditCard, label: 'Paiements' },
-    { path: '/employees', icon: Users, label: 'Employés' },
-    { path: '/accounting-schema', icon: FileText, label: 'Schéma Comptable' },
+    { path: '/payments', icon: CreditCard, label: 'Op. dépense' },
+    { path: '/employees', icon: Users, label: 'Salariés' },
+    { path: '/accounting-schema', icon: BookOpenText, label: 'Écriture Comptable' },
   ];
 
   return (
     <div className="h-full bg-sidebar text-sidebar-foreground flex flex-col">
       {/* Logo */}
       <div className="p-6 border-b border-sidebar-border">
-        <h2 className="text-center">Trésor Public</h2>
-        <p className="text-center text-sm text-sidebar-foreground/70 mt-1">
-          Gestion des Paiements
-        </p>
+        <h2 className="text-center">Tresor Finance</h2>
       </div>
 
       {/* User Info */}
@@ -52,12 +73,12 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
             <span className="text-accent-foreground">
-              {user?.fullName.charAt(0).toUpperCase()}
+              {user?.fullName?.split(" ").filter(Boolean).slice(0, 2).map(word => word.charAt(0).toUpperCase()).join("")}
             </span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="truncate">{user?.fullName}</p>
-            <p className="text-sm text-sidebar-foreground/70">{user?.role}</p>
+            <p className="text-sm text-sidebar-foreground/70">{user?.role && getRoleLabel(user.role)}</p>
           </div>
         </div>
       </div>
@@ -90,9 +111,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           variant="ghost"
           className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           onClick={handleLogout}
+          disabled={isLoggingOut}
         >
           <LogOut className="w-5 h-5 mr-3" />
-          Déconnexion
+          {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
         </Button>
       </div>
     </div>

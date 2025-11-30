@@ -1,13 +1,14 @@
-export type UserRole = 'TMSP' | 'TrRegionMSP' | 'CpeMSP';
+export type UserRole = `CpeMSP_cpeclient${1 | 2 | 3 | 4 | 5}` 
+  | `TMSP_tclient${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15}` 
+  | `TrRegionMSP_trregionclient${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}`;
 
 export interface User {
   id: string;
   fullName: string;
   role: UserRole;
-  email: string;
 }
 
-export type PaymentStatus = 'pending' | 'validated' | 'failed';
+export type PaymentStatus = 'pending' | 'success' | 'failed';
 
 export interface Payment {
   id: string;
@@ -20,29 +21,21 @@ export interface Payment {
   bankInfo: string;
   montant: number;
   status: PaymentStatus;
-  submit: boolean;
-  date: string;
-  createdBy: string;
-}
-
-export interface PaymentHistory {
-  id: string;
-  paymentId: string;
-  action: string;
-  status: PaymentStatus;
-  timestamp: string;
-  user: string;
-  details: string;
+  submit: PaymentStatus;
+  createdAt: string;
+  userId?: string;
+  user?: User;
 }
 
 export interface Employee {
   id: string;
   matricule: string;
   fullName: string;
-  fonction: string;
-  direction: string;
-  email?: string;
-  phone?: string;
+  bankInfo: string;
+  position: string;
+  address: string;
+  dateOfBirth: string;
+  createdAt: string;
 }
 
 export interface DashboardStats {
@@ -51,4 +44,15 @@ export interface DashboardStats {
   paymentsValidated: number;
   paymentsFailed: number;
   totalAmount: number;
+}
+
+export interface AccountingEntry {
+  id: number;
+  paymentId: number;
+  date: string;
+  pieceNumber: string;
+  account: string;
+  description: string;
+  debit: number;
+  credit: number;
 }

@@ -25,6 +25,7 @@ interface TableHeadProps {
 interface TableCellProps {
   children: ReactNode;
   className?: string;
+  colSpan?: number;
 }
 
 export function Table({ children }: TableProps) {
@@ -70,9 +71,9 @@ export function TableHead({ children, className = '' }: TableHeadProps) {
   );
 }
 
-export function TableCell({ children, className = '' }: TableCellProps) {
+export function TableCell({ children, className = '', colSpan }: TableCellProps) {
   return (
-    <td className={`px-4 py-3 ${className}`}>
+    <td className={`px-4 py-3 ${className}`} colSpan={colSpan}>
       {children}
     </td>
   );

@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, Shield, Link, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Login() {
@@ -15,6 +15,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,13 +23,12 @@ export function Login() {
     setLoading(true);
 
     try {
-      const user = login(fullName, password);
+      const user = await login(fullName, password);
       
       if (user) {
         toast.success('Connexion réussie', {
           description: `Bienvenue ${user.fullName}`
         });
-        // Redirect based on role
         navigate('/dashboard');
       } else {
         setError('Nom complet ou mot de passe incorrect');
@@ -57,7 +57,7 @@ export function Login() {
             </div>
             <h1 className="mb-2">Trésor Public</h1>
             <p className="text-muted-foreground">
-              Gestion Sécurisée des Paiements
+              Gestion Sécurisée des finances publiques
             </p>
           </div>
 
@@ -84,13 +84,24 @@ export function Login() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="pl-10"
+                  className="pl-10 pr-12"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -108,16 +119,6 @@ export function Login() {
               {loading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 rounded-lg bg-muted/50 text-sm">
-            <p className="mb-2">Comptes de démonstration :</p>
-            <ul className="space-y-1 text-muted-foreground">
-              <li>• Jean Dupont (TMSP)</li>
-              <li>• Marie Martin (TrRegionMSP)</li>
-              <li>• Pierre Durand (CpeMSP)</li>
-              <li className="mt-2">Mot de passe : password123</li>
-            </ul>
-          </div>
         </Card>
       </div>
 
@@ -131,22 +132,24 @@ export function Login() {
           />
         </div>
         <div className="relative z-10 text-center text-white p-8 max-w-lg">
-          <h2 className="mb-4">Plateforme Sécurisée</h2>
-          <p className="text-lg opacity-90">
-            Gestion des paiements du Trésor Public avec traçabilité blockchain via Hyperledger Fabric
+          <p className="text-lg opacity-90 mb-2">
+            Sécuriser les opérations de recettes et de dépenses des finances publiques des systèmes existants des Trésors Publics
+          </p>
+          <p className="text-base opacity-75 mb-8">
+            Avec l'apport de la technologie blockchain de Hyperledger Fabric
           </p>
           <div className="mt-8 grid grid-cols-3 gap-4">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-              <div className="text-2xl mb-1">🔒</div>
-              <p className="text-sm">Sécurisé</p>
+              <Shield className="w-8 h-8 mx-auto mb-2 text-white" />
+              <p className="text-sm font-medium">Sécurisé</p>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-              <div className="text-2xl mb-1">⛓️</div>
-              <p className="text-sm">Blockchain</p>
+              <Link className="w-8 h-8 mx-auto mb-2 text-white" />
+              <p className="text-sm font-medium">Blockchain</p>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-              <div className="text-2xl mb-1">✓</div>
-              <p className="text-sm">Traçable</p>
+              <CheckCircle className="w-8 h-8 mx-auto mb-2 text-white" />
+              <p className="text-sm font-medium">Traçable</p>
             </div>
           </div>
         </div>

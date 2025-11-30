@@ -26,7 +26,10 @@ function DashboardRouter() {
     return <Navigate to="/login" replace />;
   }
 
-  switch (user.role) {
+  // Extraire l'organisation du rôle (ex: "TMSP_tclient1" -> "TMSP")
+  const org = user.role.split('_')[0];
+
+  switch (org) {
     case 'TMSP':
       return <TMSPDashboard />;
     case 'TrRegionMSP':
