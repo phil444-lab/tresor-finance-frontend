@@ -5,7 +5,9 @@ import {
   Users, 
   BookOpenText, 
   LogOut,
-  Menu
+  Menu,
+  GitMerge,
+  TrendingUp
 } from 'lucide-react';
 import { logout, getCurrentUser } from '../lib/auth';
 import { Button } from './ui/button';
@@ -54,11 +56,17 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const org = user?.role.split('_')[0];
+  const isTrRegional = org === 'TrRegionMSP';
+  const isCpe = org === 'CpeMSP';
+
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/payments', icon: CreditCard, label: 'Op. dépense' },
-    { path: '/employees', icon: Users, label: 'Salariés' },
+    { path: '/revenues', icon: TrendingUp, label: 'Op. recettes' },
+    ...((isTrRegional || isCpe) ? [{ path: '/aggregation', icon: GitMerge, label: 'Agrégation' }] : []),
     { path: '/accounting-schema', icon: BookOpenText, label: 'Écriture Comptable' },
+    { path: '/employees', icon: Users, label: 'Salariés' },
   ];
 
   return (
@@ -108,7 +116,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       {/* Logout */}
       <div className="p-4 border-t border-sidebar-border">
         <Button
-          variant="ghost"
+          variant="destructive"
           className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           onClick={handleLogout}
           disabled={isLoggingOut}

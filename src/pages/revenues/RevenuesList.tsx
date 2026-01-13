@@ -13,13 +13,12 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 import { Plus, Search, Eye } from 'lucide-react';
-import { paymentsApi } from '../../lib/api';
-import { Payment, PaymentStatus } from '../../types';
+import { revenuesApi } from '../../lib/api';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/Table';
 import { getCurrentUser } from '../../lib/auth';
 
-export function PaymentsList() {
-  const [payments, setPayments] = useState<Payment[]>([]);
+export function RevenuesList() {
+  const [revenues, setRevenues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const user = getCurrentUser();
@@ -27,59 +26,56 @@ export function PaymentsList() {
   const isTrRegional = org === 'TrRegionMSP';
   const isCpe = org === 'CpeMSP';
 
-  const [searchMatricule, setSearchMatricule] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Charger les paiements API
   useEffect(() => {
-    const loadPayments = async () => {
+    const loadRevenues = async () => {
       try {
         setLoading(true);
-        const res = await paymentsApi.getAll(); 
-        setPayments(res.data || []);
+        const res = await revenuesApi.getAll(); 
+        setRevenues(res.data || []);
         setError(null);
       } catch (err) {
         console.error(err);
-        setError("Erreur lors du chargement des paiements.");
+        setError("Erreur lors du chargement des recettes.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadPayments();
+    loadRevenues();
   }, []);
 
-  // Filtres dynamiques
-  const filteredPayments = payments.filter((payment) => {
-    const matchesMatricule =
-      payment.matricule.toLowerCase().includes(searchMatricule.toLowerCase()) ||
-      payment.fullName.toLowerCase().includes(searchMatricule.toLowerCase());
+  const filteredRevenues = revenues.filter((revenue) => {
+    const matchesSearch =
+      revenue.taxpayerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      revenue.fullName.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
-      statusFilter === 'all' || payment.status === statusFilter;
+      statusFilter === 'all' || revenue.status === statusFilter;
 
     const matchesDate =
-      !dateFilter || payment.createdAt.startsWith(dateFilter);
+      !dateFilter || revenue.createdAt.startsWith(dateFilter);
 
-    return matchesMatricule && matchesStatus && matchesDate;
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredRevenues.length / itemsPerPage);
 
-  const paginatedPayments = filteredPayments.slice(
+  const paginatedRevenues = filteredRevenues.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchMatricule, statusFilter, dateFilter]);
+  }, [searchTerm, statusFilter, dateFilter]);
 
-  // Badge Statut
-  const getStatusBadge = (status: PaymentStatus) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'success':
         return <Badge className="bg-primary text-primary-foreground">Validé</Badge>;
@@ -87,6 +83,8 @@ export function PaymentsList() {
         return <Badge className="bg-accent text-accent-foreground">En attente</Badge>;
       case 'failed':
         return <Badge variant="destructive">Échoué</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
@@ -106,7 +104,6 @@ export function PaymentsList() {
     }
   };
 
-  // Loading / Erreur
   if (loading) {
     return <p className="text-center py-32">Chargement des données...</p>;
   }
@@ -122,45 +119,40 @@ export function PaymentsList() {
     );
   }
 
-  // Rendu principal
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1>Opérations de dépense</h1>
+          <h1>Opérations de recettes</h1>
           <p className="text-muted-foreground mt-1">
-            Consultez et gérez tous les paiements de salaires effectués via la blockchain.
+            Consultez et gérez toutes les recettes d'impôts sur le revenu.
           </p>
         </div>
         {!isTrRegional && !isCpe && (
-          <Link to="/payments/create">
+          <Link to="/revenues/create">
             <Button className="gap-2 text-md">
               <Plus className="w-4 h-4" />
-              Créer une transaction
+              Créer une recette
             </Button>
           </Link>
         )}
       </div>
 
-      {/* Filters */}
       <Card className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
           <div>
             <label className="text-sm mb-2 block">Rechercher</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Insérer un mot clé"
-                value={searchMatricule}
-                onChange={(e) => setSearchMatricule(e.target.value)}
+                placeholder="Numéro contribuable ou nom"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
           </div>
 
-          {/* Status Filter */}
           <div>
             <label className="text-sm mb-2 block">Statut</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -176,7 +168,6 @@ export function PaymentsList() {
             </Select>
           </div>
 
-          {/* Date */}
           <div>
             <label className="text-sm mb-2 block">Date</label>
             <InputDate
@@ -187,15 +178,15 @@ export function PaymentsList() {
         </div>
       </Card>
 
-      {/* Payments Table */}
       <Card className="p-6">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Matricule</TableHead>
+              <TableHead>N° Contribuable</TableHead>
               <TableHead>Nom Complet</TableHead>
+              <TableHead>Type d'impôt</TableHead>
               <TableHead>Montant</TableHead>
-              <TableHead>Blockchain</TableHead>
+              <TableHead>Statut</TableHead>
               <TableHead>Agrégation</TableHead>
               <TableHead>Date & Heure</TableHead>
               <TableHead>Créé par</TableHead>
@@ -204,24 +195,25 @@ export function PaymentsList() {
           </TableHeader>
 
           <TableBody>
-            {filteredPayments.length === 0 ? (
+            {filteredRevenues.length === 0 ? (
               <TableRow>
-                <TableCell className="text-center py-8 text-muted-foreground" colSpan={7}>
-                  Aucun paiement trouvé
+                <TableCell className="text-center py-8 text-muted-foreground" colSpan={9}>
+                  Aucune recette trouvée
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedPayments.map((payment) => (
-                <TableRow key={payment.id}>
-                  <TableCell>{payment.matricule}</TableCell>
-                  <TableCell>{payment.fullName}</TableCell>
+              paginatedRevenues.map((revenue) => (
+                <TableRow key={revenue.id}>
+                  <TableCell>{revenue.taxpayerNumber}</TableCell>
+                  <TableCell>{revenue.fullName}</TableCell>
+                  <TableCell>{revenue.taxType}</TableCell>
                   <TableCell>
-                    { payment.montant.toLocaleString('fr-FR') } F CFA
+                    {revenue.montant.toLocaleString('fr-FR')} F CFA
                   </TableCell>
-                  <TableCell>{getStatusBadge(payment.submit)}</TableCell>
-                  <TableCell>{getAggregationBadge(payment.aggregationStatus)}</TableCell>
+                  <TableCell>{getStatusBadge(revenue.submit)}</TableCell>
+                  <TableCell>{getAggregationBadge(revenue.aggregationStatus)}</TableCell>
                   <TableCell>
-                    {new Date(payment.createdAt).toLocaleString('fr-FR', {
+                    {new Date(revenue.createdAt).toLocaleString('fr-FR', {
                       day: '2-digit',
                       month: '2-digit',
                       year: 'numeric',
@@ -231,10 +223,10 @@ export function PaymentsList() {
                     }).replace(' ', ' à ')}
                   </TableCell>
                   
-                  <TableCell>{payment.user?.fullName || "—"}</TableCell>
+                  <TableCell>{revenue.user?.fullName || "—"}</TableCell>
 
                   <TableCell>
-                    <Link to={`/payments/${payment.id}`}>
+                    <Link to={`/revenues/${revenue.id}`}>
                       <Button variant="ghost" size="sm" className="gap-2">
                         <Eye className="w-4 h-4" />
                         Détails
@@ -247,7 +239,6 @@ export function PaymentsList() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
         <div className="mt-6 flex items-center justify-between">
           <Button
             variant="outline"
@@ -269,7 +260,6 @@ export function PaymentsList() {
             Suivant
           </Button>
         </div>
-
       </Card>
     </div>
   );

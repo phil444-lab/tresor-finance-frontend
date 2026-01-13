@@ -80,7 +80,7 @@ export function AccountingSchema() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">Date</TableHead>
+                  <TableHead className="w-[100px]">Date & Heure</TableHead>
                   <TableHead className="w-[120px]">N° Pièce</TableHead>
                   <TableHead>Libellé</TableHead>
                   <TableHead className="w-[130px]">Type d'opération</TableHead>
@@ -94,7 +94,13 @@ export function AccountingSchema() {
                 {paginatedEntries.map(e => (
                   <TableRow key={e.id}>
                     <TableCell className="font-medium">
-                      {new Date(e.date).toLocaleDateString('fr-FR')}
+                      {new Date(e.date).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </TableCell>
                     <TableCell className="font-mono text-sm">{e.pieceNumber}</TableCell>
                     <TableCell>{e.description}</TableCell>

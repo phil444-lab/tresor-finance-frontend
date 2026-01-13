@@ -8,6 +8,10 @@ import { CpeMSPDashboard } from './pages/dashboards/CpeMSPDashboard';
 import { PaymentsList } from './pages/payments/PaymentsList';
 import { CreatePayment } from './pages/payments/CreatePayment';
 import { PaymentDetails } from './pages/payments/PaymentDetails';
+import { RevenuesList } from './pages/revenues/RevenuesList';
+import { CreateRevenue } from './pages/revenues/CreateRevenue';
+import { RevenueDetails } from './pages/revenues/RevenueDetails';
+import { AggregationPage } from './pages/payments/AggregationPage';
 import { EmployeesList } from './pages/employees/EmployeesList';
 import { AccountingSchema } from './pages/AccountingSchema';
 import { isAuthenticated, getCurrentUser } from './lib/auth';
@@ -61,6 +65,10 @@ export default function App() {
                   <Route path="/payments" element={<PaymentsList />} />
                   <Route path="/payments/create" element={<CreatePayment />} />
                   <Route path="/payments/:id" element={<PaymentDetails />} />
+                  <Route path="/revenues" element={<RevenuesList />} />
+                  <Route path="/revenues/create" element={<CreateRevenue />} />
+                  <Route path="/revenues/:id" element={<RevenueDetails />} />
+                  <Route path="/aggregation" element={<AggregationPage />} />
                   <Route path="/employees" element={<EmployeesList />} />
                   <Route path="/accounting-schema" element={<AccountingSchema />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />

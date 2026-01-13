@@ -9,6 +9,7 @@ export interface User {
 }
 
 export type PaymentStatus = 'pending' | 'success' | 'failed';
+export type AggregationStatus = 'waiting_approval' | 'approved' | 'rejected';
 
 export interface Payment {
   id: string;
@@ -22,6 +23,7 @@ export interface Payment {
   montant: number;
   status: PaymentStatus;
   submit: PaymentStatus;
+  aggregationStatus: AggregationStatus;
   createdAt: string;
   userId?: string;
   user?: User;

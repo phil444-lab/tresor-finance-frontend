@@ -323,7 +323,7 @@ export function TMSPDashboard() {
               <TableHead>Nom</TableHead>
               <TableHead>Montant</TableHead>
               <TableHead>Validation</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>Date & Heure</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -332,7 +332,7 @@ export function TMSPDashboard() {
                 <TableCell>{payment.matricule}</TableCell>
                 <TableCell>{payment.fullName}</TableCell>
                 <TableCell>{ payment.montant.toLocaleString('fr-FR') } F CFA</TableCell>
-                <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                <TableCell>{getStatusBadge(payment.submit)}</TableCell>
                 <TableCell>
                   {new Date(payment.createdAt).toLocaleString('fr-FR', {
                     day: '2-digit',

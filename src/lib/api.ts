@@ -2,6 +2,26 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 import { AccountingEntry } from '../types';
 
+export interface PendingPayment {
+  id: string;
+  chainId: string;
+  matricule: string;
+  fullName: string;
+  montant: number;
+  aggregationStatus: string;
+  createdAt: string;
+  user: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
+  aggregator?: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
+}
+
 // Types pour les réponses API
 export interface LoginRequest {
   fullName: string;
@@ -241,7 +261,91 @@ export const paymentsApi = {
     return apiClient.get(`/payments/${id}/history`);
   },
 
+  getFromBlockchain: async (chainId: string): Promise<{ success: boolean; data: any }> => {
+    return apiClient.get(`/payments/blockchain/${chainId}`);
+  },
+
   getAccountingEntries: async (): Promise<{ success: boolean; data: AccountingEntry[] }> => {
     return apiClient.get('/payments/accounting-entries');
+  },
+};
+
+// Services pour les recettes
+export const revenuesApi = {
+  getAll: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/revenues');
+  },
+
+  getById: async (id: string): Promise<{ success: boolean; data: any }> => {
+    return apiClient.get(`/revenues/${id}`);
+  },
+
+  getByTaxpayerNumber: async (taxpayerNumber: string): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get(`/revenues/taxpayer/${taxpayerNumber}`);
+  },
+
+  create: async (revenue: any): Promise<{ message: string; revenue: any }> => {
+    return apiClient.post('/revenues', revenue);
+  },
+
+  getHistory: async (id: string): Promise<any[]> => {
+    return apiClient.get(`/revenues/${id}/history`);
+  },
+
+  getAccountingEntries: async (): Promise<{ success: boolean; data: AccountingEntry[] }> => {
+    return apiClient.get('/revenues/accounting-entries');
+  },
+};
+
+// Services pour l'agrégation (Trésoriers Régionaux)
+export const aggregationApi = {
+  getPendingPayments: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/aggregation/pending');
+  },
+
+  approvePayment: async (paymentId: string, action: 'approved' | 'rejected' | 'cpe_approved' | 'cpe_rejected'): Promise<{ success: boolean; message: string; txId: string }> => {
+    return apiClient.put(`/aggregation/payment/${paymentId}/aggregate`, { action });
+  },
+
+  getSupervisedTreasurers: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/aggregation/supervised');
+  },
+
+  getPendingRevenues: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/aggregation/revenues/pending');
+  },
+
+  approveRevenue: async (revenueId: string, action: 'approved' | 'rejected'): Promise<{ success: boolean; message: string; txId: string }> => {
+    return apiClient.put(`/aggregation/revenue/${revenueId}/aggregate`, { action });
+  },
+};
+
+// Services pour les utilisateurs
+export const usersApi = {
+  getById: async (id: string): Promise<{ success: boolean; data: any }> => {
+    return apiClient.get(`/users/${id}`);
+  },
+};
+
+// Services pour les CPE
+export const cpeApi = {
+  getPendingPayments: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/aggregation/cpe/pending');
+  },
+
+  validatePayment: async (paymentId: string, action: 'cpe_approved' | 'cpe_rejected'): Promise<{ success: boolean; message: string }> => {
+    return apiClient.put(`/aggregation/cpe/payment/${paymentId}/validate`, { action });
+  },
+
+  getSupervisedRegionalTreasurers: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/aggregation/cpe/supervised');
+  },
+
+  getPendingRevenues: async (): Promise<{ success: boolean; data: any[] }> => {
+    return apiClient.get('/aggregation/cpe/revenues/pending');
+  },
+
+  validateRevenue: async (revenueId: string, action: 'cpe_approved' | 'cpe_rejected'): Promise<{ success: boolean; message: string }> => {
+    return apiClient.put(`/aggregation/cpe/revenue/${revenueId}/validate`, { action });
   },
 };
