@@ -65,30 +65,88 @@ export function RevenueDetails() {
       return;
     }
 
-    const entry = history[0];
-    const record = entry.Record;
+    let allValid = true;
+    const issues = [];
 
-    const ledgerData = {
-      taxpayerNumber: record.taxpayerNumber,
-      fullName: record.fullName,
-      taxType: record.taxType,
-      montant: record.montant
+    // 1. Vérifier la transaction initiale
+    const initialEntry = history[0];
+    const initialRecord = initialEntry.Record;
+
+    const initialLedgerData = {
+      supplierNumber: initialRecord.supplierNumber,
+      fullName: initialRecord.fullName,
+      serviceType: initialRecord.serviceType,
+      montant: initialRecord.montant
     };
+    const initialLedgerHash = CryptoJS.SHA256(JSON.stringify(initialLedgerData)).toString();
 
-    const ledgerHash = CryptoJS.SHA256(JSON.stringify(ledgerData)).toString();
-
-    const dbData = {
-      taxpayerNumber: revenue.taxpayerNumber,
+    const initialDbData = {
+      supplierNumber: revenue.supplierNumber,
       fullName: revenue.fullName,
-      taxType: revenue.taxType,
+      serviceType: revenue.serviceType,
       montant: revenue.montant
     };
-    const dbHash = CryptoJS.SHA256(JSON.stringify(dbData)).toString();
+    const initialDbHash = CryptoJS.SHA256(JSON.stringify(initialDbData)).toString();
 
-    if (ledgerHash === dbHash) {
-      toast.success("Les données sont intactes : aucun signe de modification.");
+    if (initialLedgerHash !== initialDbHash) {
+      allValid = false;
+      issues.push("Données initiales");
+    }
+
+    // 2. Vérifier l'agrégation TR
+    const trAggregation = history.find(entry => 
+      entry.Record.aggregationStatus === 'approved' || entry.Record.aggregationStatus === 'rejected'
+    );
+
+    if (trAggregation && revenue.aggregatedBy) {
+      const trLedgerData = {
+        aggregationStatus: trAggregation.Record.aggregationStatus,
+        aggregatedBy: trAggregation.Record.aggregatedBy
+      };
+      const trLedgerHash = CryptoJS.SHA256(JSON.stringify(trLedgerData)).toString();
+
+      const trDbData = {
+        aggregationStatus: revenue.aggregationStatus === 'cpe_approved' || revenue.aggregationStatus === 'cpe_rejected' 
+          ? 'approved' 
+          : revenue.aggregationStatus,
+        aggregatedBy: revenue.aggregatedBy
+      };
+      const trDbHash = CryptoJS.SHA256(JSON.stringify(trDbData)).toString();
+
+      if (trLedgerHash !== trDbHash) {
+        allValid = false;
+        issues.push("Agrégation TR");
+      }
+    }
+
+    // 3. Vérifier la validation CPE
+    const cpeValidation = history.find(entry => 
+      entry.Record.aggregationStatus === 'cpe_approved' || entry.Record.aggregationStatus === 'cpe_rejected'
+    );
+
+    if (cpeValidation && revenue.cpeValidatedBy) {
+      const cpeLedgerData = {
+        aggregationStatus: cpeValidation.Record.aggregationStatus,
+        cpeValidatedBy: cpeValidation.Record.cpeValidatedBy
+      };
+      const cpeLedgerHash = CryptoJS.SHA256(JSON.stringify(cpeLedgerData)).toString();
+
+      const cpeDbData = {
+        aggregationStatus: revenue.aggregationStatus,
+        cpeValidatedBy: revenue.cpeValidatedBy
+      };
+      const cpeDbHash = CryptoJS.SHA256(JSON.stringify(cpeDbData)).toString();
+
+      if (cpeLedgerHash !== cpeDbHash) {
+        allValid = false;
+        issues.push("Validation CPE");
+      }
+    }
+
+    if (allValid) {
+      toast.success("Toutes les données sont intactes : aucun signe de modification.");
     } else {
-      toast.error("ALTÉRATION détectée : les données en base ont été modifiées.");
+      toast.error(`ALTÉRATION détectée : ${issues.join(', ')} modifié(es)`);
     }
   };
 
@@ -154,18 +212,18 @@ export function RevenueDetails() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <p className="text-sm text-muted-foreground">Numéro Contribuable</p>
-              <p className="mt-1 font-medium text-base">{revenue.taxpayerNumber}</p>
+              <p className="text-sm text-muted-foreground">Numéro de Transaction</p>
+              <p className="mt-1 font-medium text-base">{revenue.supplierNumber}</p>
             </div>
 
             <div>
-              <p className="text-sm text-muted-foreground">Nom Complet</p>
+              <p className="text-sm text-muted-foreground">Client</p>
               <p className="mt-1 font-medium">{revenue.fullName}</p>
             </div>
 
             <div className="md:col-span-2">
-              <p className="text-sm text-muted-foreground">Type d'impôt</p>
-              <p className="mt-1 text-sm">{revenue.taxType}</p>
+              <p className="text-sm text-muted-foreground">Type de prestation</p>
+              <p className="mt-1 text-sm">{revenue.serviceType}</p>
             </div>
 
             <div>
@@ -263,8 +321,9 @@ export function RevenueDetails() {
             )}
           </div>
         </Card>
+      </div>
 
-        <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
+      <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
           <h3 className="mb-2 text-lg font-semibold">Informations Blockchain</h3>
 
           {revenue.submit === 'success' ? (
@@ -282,16 +341,44 @@ export function RevenueDetails() {
                 <p className="font-mono text-sm break-all">{revenue.blockHash}</p>
               </div>
               {revenue.aggregationTxId && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Aggregation Transaction ID (Trésorier Régional)</p>
-                  <p className="font-mono text-sm break-all">{revenue.aggregationTxId}</p>
-                </div>
+                <>
+                  {revenue.aggregationBlockNumber && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Aggregation Block Number</p>
+                      <p className="font-mono text-sm">{revenue.aggregationBlockNumber}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Aggregation Transaction ID (Trésorier Régional)</p>
+                    <p className="font-mono text-sm break-all">{revenue.aggregationTxId}</p>
+                  </div>
+                  {revenue.aggregationBlockHash && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Aggregation Block Hash</p>
+                      <p className="font-mono text-sm break-all">{revenue.aggregationBlockHash}</p>
+                    </div>
+                  )}
+                </>
               )}
               {revenue.cpeValidationTxId && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Validation Transaction ID (Comptable Principal d'Etat)</p>
-                  <p className="font-mono text-sm break-all">{revenue.cpeValidationTxId}</p>
-                </div>
+                <>
+                  {revenue.cpeValidationBlockNumber && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Validation Block Number</p>
+                      <p className="font-mono text-sm">{revenue.cpeValidationBlockNumber}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Validation Transaction ID (Comptable Principal d'Etat)</p>
+                    <p className="font-mono text-sm break-all">{revenue.cpeValidationTxId}</p>
+                  </div>
+                  {revenue.cpeValidationBlockHash && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Validation Block Hash</p>
+                      <p className="font-mono text-sm break-all">{revenue.cpeValidationBlockHash}</p>
+                    </div>
+                  )}
+                </>
               )}
 
               <Button className="w-full text-lg p-6" onClick={handleVerifyIntegrity}>
@@ -331,7 +418,6 @@ export function RevenueDetails() {
             </div>
           )}
         </Card>
-      </div>
     </div>
   );
 }

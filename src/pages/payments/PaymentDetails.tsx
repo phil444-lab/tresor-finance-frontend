@@ -109,30 +109,88 @@ export function PaymentDetails() {
       return;
     }
 
-    const entry = history[0];
-    const record = entry.Record;
+    let allValid = true;
+    const issues = [];
 
-    const ledgerData = {
-      matricule: record.matricule,
-      fullName: record.fullName,
-      bankInfo: record.bankInfo,
-      montant: record.montant
+    // 1. Vérifier la transaction initiale
+    const initialEntry = history[0];
+    const initialRecord = initialEntry.Record;
+
+    const initialLedgerData = {
+      matricule: initialRecord.matricule,
+      fullName: initialRecord.fullName,
+      bankInfo: initialRecord.bankInfo,
+      montant: initialRecord.montant
     };
+    const initialLedgerHash = CryptoJS.SHA256(JSON.stringify(initialLedgerData)).toString();
 
-    const ledgerHash = CryptoJS.SHA256(JSON.stringify(ledgerData)).toString();
-
-    const dbData = {
+    const initialDbData = {
       matricule: payment.matricule,
       fullName: payment.fullName,
       bankInfo: payment.bankInfo,
       montant: payment.montant
     };
-    const dbHash = CryptoJS.SHA256(JSON.stringify(dbData)).toString();
+    const initialDbHash = CryptoJS.SHA256(JSON.stringify(initialDbData)).toString();
 
-    if (ledgerHash === dbHash) {
-      toast.success("Les données sont intactes : aucun signe de modification.");
+    if (initialLedgerHash !== initialDbHash) {
+      allValid = false;
+      issues.push("Données initiales");
+    }
+
+    // 2. Vérifier l'agrégation TR
+    const trAggregation = history.find(entry => 
+      entry.Record.aggregationStatus === 'approved' || entry.Record.aggregationStatus === 'rejected'
+    );
+
+    if (trAggregation && payment.aggregatedBy) {
+      const trLedgerData = {
+        aggregationStatus: trAggregation.Record.aggregationStatus,
+        aggregatedBy: trAggregation.Record.aggregatedBy
+      };
+      const trLedgerHash = CryptoJS.SHA256(JSON.stringify(trLedgerData)).toString();
+
+      const trDbData = {
+        aggregationStatus: payment.aggregationStatus === 'cpe_approved' || payment.aggregationStatus === 'cpe_rejected' 
+          ? 'approved' 
+          : payment.aggregationStatus,
+        aggregatedBy: payment.aggregatedBy
+      };
+      const trDbHash = CryptoJS.SHA256(JSON.stringify(trDbData)).toString();
+
+      if (trLedgerHash !== trDbHash) {
+        allValid = false;
+        issues.push("Agrégation TR");
+      }
+    }
+
+    // 3. Vérifier la validation CPE
+    const cpeValidation = history.find(entry => 
+      entry.Record.aggregationStatus === 'cpe_approved' || entry.Record.aggregationStatus === 'cpe_rejected'
+    );
+
+    if (cpeValidation && payment.cpeValidatedBy) {
+      const cpeLedgerData = {
+        aggregationStatus: cpeValidation.Record.aggregationStatus,
+        cpeValidatedBy: cpeValidation.Record.cpeValidatedBy
+      };
+      const cpeLedgerHash = CryptoJS.SHA256(JSON.stringify(cpeLedgerData)).toString();
+
+      const cpeDbData = {
+        aggregationStatus: payment.aggregationStatus,
+        cpeValidatedBy: payment.cpeValidatedBy
+      };
+      const cpeDbHash = CryptoJS.SHA256(JSON.stringify(cpeDbData)).toString();
+
+      if (cpeLedgerHash !== cpeDbHash) {
+        allValid = false;
+        issues.push("Validation CPE");
+      }
+    }
+
+    if (allValid) {
+      toast.success("Toutes les données sont intactes : aucun signe de modification.");
     } else {
-      toast.error("ALTÉRATION détectée : les données en base ont été modifiées.");
+      toast.error(`ALTÉRATION détectée : ${issues.join(', ')} modifié(es)`);
     }
   };
 
@@ -162,7 +220,7 @@ export function PaymentDetails() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
             <div>
-              <p className="text-sm text-muted-foreground">Matricule</p>
+              <p className="text-sm text-muted-foreground">Code Bénéficiaire</p>
               <p className="mt-1 font-medium text-base">{payment.matricule}</p>
             </div>
 
@@ -287,9 +345,10 @@ export function PaymentDetails() {
 
           </div>
         </Card>
+      </div>
 
-        {/* Blockchain Information */}
-        <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
+      {/* Blockchain Information */}
+      <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
           <h3 className="mb-2 text-lg font-semibold">Informations Blockchain</h3>
 
           {payment.submit === 'success' ? (
@@ -307,16 +366,44 @@ export function PaymentDetails() {
                 <p className="font-mono text-sm break-all">{payment.blockHash}</p>
               </div>
               {payment.aggregationTxId && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Aggregation Transaction ID (Trésorier Régional)</p>
-                  <p className="font-mono text-sm break-all">{payment.aggregationTxId}</p>
-                </div>
+                <>
+                  {payment.aggregationBlockNumber && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Aggregation Block Number</p>
+                      <p className="font-mono text-sm">{payment.aggregationBlockNumber}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Aggregation Transaction ID (Trésorier Régional)</p>
+                    <p className="font-mono text-sm break-all">{payment.aggregationTxId}</p>
+                  </div>
+                  {payment.aggregationBlockHash && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Aggregation Block Hash</p>
+                      <p className="font-mono text-sm break-all">{payment.aggregationBlockHash}</p>
+                    </div>
+                  )}
+                </>
               )}
               {payment.cpeValidationTxId && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Validation Transaction ID (Comptable Principal d'Etat)</p>
-                  <p className="font-mono text-sm break-all">{payment.cpeValidationTxId}</p>
-                </div>
+                <>
+                  {payment.cpeValidationBlockNumber && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Validation Block Number</p>
+                      <p className="font-mono text-sm">{payment.cpeValidationBlockNumber}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Validation Transaction ID (Comptable Principal d'Etat)</p>
+                    <p className="font-mono text-sm break-all">{payment.cpeValidationTxId}</p>
+                  </div>
+                  {payment.cpeValidationBlockHash && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Validation Block Hash</p>
+                      <p className="font-mono text-sm break-all">{payment.cpeValidationBlockHash}</p>
+                    </div>
+                  )}
+                </>
               )}
 
               <Button className="w-full text-lg p-6" onClick={handleVerifyIntegrity}>
@@ -356,7 +443,6 @@ export function PaymentDetails() {
             </div>
           )}
         </Card>
-      </div>
     </div>
   );
 }
