@@ -13,9 +13,9 @@ export function CreateRevenue() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    taxpayerNumber: '',
-    fullName: '',
-    taxType: '',
+    fileNumber: '',
+    beneficiary: '',
+    serviceType: '',
     montant: ''
   });
 
@@ -26,7 +26,7 @@ export function CreateRevenue() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.taxpayerNumber || !formData.fullName || !formData.taxType || !formData.montant || parseFloat(formData.montant) <= 0) {
+    if (!formData.fileNumber || !formData.beneficiary || !formData.serviceType || !formData.montant || parseFloat(formData.montant) <= 0) {
       toast.error('Veuillez remplir tous les champs correctement');
       return;
     }
@@ -34,9 +34,9 @@ export function CreateRevenue() {
     try {
       setLoading(true);
       const payload = {
-        taxpayerNumber: formData.taxpayerNumber,
-        fullName: formData.fullName,
-        taxType: formData.taxType,
+        supplierNumber: formData.fileNumber,
+        fullName: formData.beneficiary,
+        serviceType: formData.serviceType,
         montant: Number(formData.montant)
       };
       
@@ -64,7 +64,7 @@ export function CreateRevenue() {
         <div>
           <h1>Créer une Recette</h1>
           <p className="text-muted-foreground mt-1">
-            Enregistrez une nouvelle recette d'impôt dans le système
+            Enregistrez une nouvelle recette de prestation dans le système
           </p>
         </div>
       </div>
@@ -73,52 +73,56 @@ export function CreateRevenue() {
         <Card className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="taxpayerNumber">
-                Numéro Contribuable <span className="text-destructive">*</span>
+              <Label htmlFor="fileNumber">
+                Numéro de Dossier <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="taxpayerNumber"
-                placeholder="Ex: CONT001"
-                value={formData.taxpayerNumber}
-                onChange={(e) => handleChange('taxpayerNumber', e.target.value)}
+                id="fileNumber"
+                placeholder="Ex: DOSS-2025-001"
+                value={formData.fileNumber}
+                onChange={(e) => handleChange('fileNumber', e.target.value)}
                 required
               />
               <p className="text-sm text-muted-foreground">
-                Numéro d'identification du contribuable
+                Identifiant unique de la transaction (ex: PASS-2025-001)
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fullName">
-                Nom Complet <span className="text-destructive">*</span>
+              <Label htmlFor="beneficiary">
+                Bénéficiaire <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="fullName"
+                id="beneficiary"
                 placeholder="Ex: Jean Dupont"
-                value={formData.fullName}
-                onChange={(e) => handleChange('fullName', e.target.value)}
+                value={formData.beneficiary}
+                onChange={(e) => handleChange('beneficiary', e.target.value)}
                 required
               />
+              <p className="text-sm text-muted-foreground">
+                Citoyen/client qui paie pour le service
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="taxType">
-                Type d'impôt <span className="text-destructive">*</span>
+              <Label htmlFor="serviceType">
+                Type de prestation <span className="text-destructive">*</span>
               </Label>
-              <Select value={formData.taxType} onValueChange={(value: string) => handleChange('taxType', value)} required>
+              <Select value={formData.serviceType} onValueChange={(value: string) => handleChange('serviceType', value)} required>
                 <SelectTrigger className="w-full border border-gray-300 rounded-md">
-                  <SelectValue placeholder="Sélectionnez le type d'impôt" />
+                  <SelectValue placeholder="Sélectionnez le type de prestation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Impôt sur le revenu">Impôt sur le revenu</SelectItem>
-                  <SelectItem value="Impôt foncier">Impôt foncier</SelectItem>
-                  <SelectItem value="TVA">TVA</SelectItem>
-                  <SelectItem value="Taxe professionnelle">Taxe professionnelle</SelectItem>
-                  <SelectItem value="Impôt sur les sociétés">Impôt sur les sociétés</SelectItem>
+                  <SelectItem value="Délivrance passeport">Délivrance passeport</SelectItem>
+                  <SelectItem value="Carte d'identité">Carte d'identité</SelectItem>
+                  <SelectItem value="Extrait d'acte">Extrait d'acte</SelectItem>
+                  <SelectItem value="Légalisation document">Légalisation document</SelectItem>
+                  <SelectItem value="Certification">Certification</SelectItem>
+                  <SelectItem value="Frais de dossier">Frais de dossier</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">
-                Catégorie de l'impôt perçu
+                Catégorie de la prestation fournie
               </p>
             </div>
 

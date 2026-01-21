@@ -4,14 +4,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { employeesApi, paymentsApi } from '../../lib/api';
 import { toast } from 'sonner';
@@ -28,46 +21,51 @@ export function CreatePayment() {
 
   const [loading, setLoading] = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
         const res = await employeesApi.getAll() as any;
-        
         setEmployees(res.data || []);
       } catch (error: any) {
         toast.error("Erreur lors du chargement des employés");
-      } finally {
-        setLoadingEmployees(false);
       }
     };
 
     fetchEmployees();
   }, []);
 
-  const handleMatriculeChange = async (matricule: string) => {
-    if (!matricule) return;
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setFormData(prev => ({ ...prev, matricule: value }));
 
-    try {
-      const res = await employeesApi.getByMatricule(matricule) as any;
-      const employee = res.data;
-
-      setFormData({
-        matricule: employee.matricule,
-        fullName: employee.fullName,
-        bankInfo: employee.bankInfo,
-        montant: '',
-      });
-    } catch (error) {
-      toast.error("Employé introuvable pour ce matricule");
-      setFormData({
-        matricule,
-        fullName: '',
-        bankInfo: '',
-        montant: '',
-      });
+    if (value.trim() === '') {
+      setFilteredEmployees([]);
+      setShowSuggestions(false);
+      setFormData(prev => ({ ...prev, fullName: '', bankInfo: '' }));
+      return;
     }
+
+    const filtered = employees.filter(emp =>
+      emp.matricule.toLowerCase().includes(value.toLowerCase()) ||
+      emp.fullName.toLowerCase().includes(value.toLowerCase())
+    );
+    setFilteredEmployees(filtered);
+    setShowSuggestions(true);
+  };
+
+  const handleSelectEmployee = (employee: any) => {
+    setFormData({
+      matricule: employee.matricule,
+      fullName: employee.fullName,
+      bankInfo: employee.bankInfo,
+      montant: formData.montant,
+    });
+    setSearchQuery(employee.matricule);
+    setShowSuggestions(false);
   };
 
   const handleChange = (field: string, value: string) => {
@@ -133,32 +131,44 @@ export function CreatePayment() {
         {/* Form */}
         <Card className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Matricule Select */}
+            {/* Code Bénéficiaire avec Recherche */}
             <div className="space-y-2">
               <Label htmlFor="matricule">
-                Matricule <span className="text-destructive">*</span>
+                Code Bénéficiaire <span className="text-destructive">*</span>
               </Label>
-              <Select value={formData.matricule} onValueChange={handleMatriculeChange} required>
-                <SelectTrigger className="w-full border border-gray-300 rounded-md">
-                  <SelectValue placeholder="Sélectionnez un matricule" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  {loadingEmployees ? (
-                    <div className="p-2 text-sm text-muted-foreground">Chargement...</div>
-                  ) : employees.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground">Aucun employé trouvé</div>
-                  ) : (
-                    employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.matricule}>
-                        {emp.matricule} - {emp.fullName}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="matricule"
+                  placeholder="Rechercher par code ou nom..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => searchQuery && setShowSuggestions(true)}
+                  className="pl-10"
+                  required
+                />
+                
+                {showSuggestions && filteredEmployees.length > 0 && (
+                  <div 
+                    className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg"
+                    style={{ maxHeight: '240px', overflowY: 'scroll' }}
+                  >
+                    {filteredEmployees.map((emp) => (
+                      <div
+                        key={emp.id}
+                        onClick={() => handleSelectEmployee(emp)}
+                        className="px-4 py-3 hover:bg-muted cursor-pointer border-b border-border last:border-b-0"
+                      >
+                        <div className="font-medium text-foreground">{emp.matricule}</div>
+                        <div className="text-sm text-muted-foreground">{emp.fullName}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
               <p className="text-sm text-muted-foreground">
-                Sélectionnez le matricule de l'employé bénéficiaire
+                Tapez pour rechercher un employé par code ou nom
               </p>
             </div>
 
@@ -169,7 +179,7 @@ export function CreatePayment() {
               </Label>
               <Input
                 id="fullName"
-                placeholder="Sélectionnez d'abord un matricule"
+                placeholder="Sélectionnez d'abord un code bénéficiaire"
                 value={formData.fullName}
                 readOnly
                 className="bg-muted/50"
@@ -184,7 +194,7 @@ export function CreatePayment() {
               </Label>
               <Input
                 id="bankInfo"
-                placeholder="Sélectionnez d'abord un matricule"
+                placeholder="Sélectionnez d'abord un code bénéficiaire"
                 value={formData.bankInfo}
                 readOnly
                 className="bg-muted/50"
