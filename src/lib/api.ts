@@ -253,6 +253,10 @@ export const paymentsApi = {
     return apiClient.post('/payments', payment);
   },
 
+  submitToBlockchain: async (id: string): Promise<{ message: string; payment: any; txId: string }> => {
+    return apiClient.post(`/payments/${id}/submit-blockchain`);
+  },
+
   delete: async (id: string): Promise<{ message: string }> => {
     return apiClient.delete(`/payments/${id}`);
   },
@@ -286,6 +290,10 @@ export const revenuesApi = {
 
   create: async (revenue: any): Promise<{ message: string; revenue: any }> => {
     return apiClient.post('/revenues', revenue);
+  },
+
+  submitToBlockchain: async (id: string): Promise<{ message: string; revenue: any; txId: string }> => {
+    return apiClient.post(`/revenues/${id}/submit-blockchain`);
   },
 
   getHistory: async (id: string): Promise<any[]> => {
