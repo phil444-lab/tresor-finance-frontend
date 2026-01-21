@@ -51,7 +51,7 @@ function EmployeeFormDialog({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="matricule">Matricule <span className='text-destructive'>*</span></Label>
+            <Label htmlFor="matricule">Code Bénéficiaire <span className='text-destructive'>*</span></Label>
             <Input
               id="matricule"
               value={formData.matricule}
