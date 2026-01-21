@@ -12,15 +12,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { Plus, Search, Eye } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../../components/ui/dialog';
+import { Plus, Search, Eye, Send } from 'lucide-react';
 import { revenuesApi } from '../../lib/api';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/Table';
 import { getCurrentUser } from '../../lib/auth';
+import { toast } from 'sonner';
 
 export function RevenuesList() {
   const [revenues, setRevenues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isBulkConfirmDialogOpen, setIsBulkConfirmDialogOpen] = useState(false);
+  const [revenueToSubmit, setRevenueToSubmit] = useState<string | null>(null);
+  const [selectedRevenues, setSelectedRevenues] = useState<Set<string>>(new Set());
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const user = getCurrentUser();
   const org = user?.role.split('_')[0];
   const isTrRegional = org === 'TrRegionMSP';
@@ -32,27 +47,77 @@ export function RevenuesList() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    const loadRevenues = async () => {
-      try {
-        setLoading(true);
-        const res = await revenuesApi.getAll(); 
-        setRevenues(res.data || []);
-        setError(null);
-      } catch (err) {
-        console.error(err);
-        setError("Erreur lors du chargement des recettes.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadRevenues = async () => {
+    try {
+      setLoading(true);
+      const res = await revenuesApi.getAll(); 
+      setRevenues(res.data || []);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError("Erreur lors du chargement des recettes.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadRevenues();
   }, []);
 
+  const handleSubmitToBlockchain = async () => {
+    if (!revenueToSubmit) return;
+    try {
+      setSubmitting(revenueToSubmit);
+      await revenuesApi.submitToBlockchain(revenueToSubmit);
+      await loadRevenues();
+      setIsConfirmDialogOpen(false);
+      toast.success('Recette envoyée à la blockchain avec succès');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Erreur lors de l'envoi à la blockchain");
+    } finally {
+      setSubmitting(null);
+      setRevenueToSubmit(null);
+    }
+  };
+
+  const handleBulkSubmit = async () => {
+    if (selectedRevenues.size === 0) return;
+    setIsBulkConfirmDialogOpen(false);
+    try {
+      setIsBulkSubmitting(true);
+      const promises = Array.from(selectedRevenues).map(id => 
+        revenuesApi.submitToBlockchain(id)
+      );
+      await Promise.all(promises);
+      await loadRevenues();
+      const count = selectedRevenues.size;
+      setSelectedRevenues(new Set());
+      toast.success(`${count} recette(s) envoyée(s) avec succès`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Erreur lors de l'envoi groupé");
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
+  const toggleRevenueSelection = (revenueId: string) => {
+    setSelectedRevenues(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(revenueId)) {
+        newSet.delete(revenueId);
+      } else {
+        newSet.add(revenueId);
+      }
+      return newSet;
+    });
+  };
+
   const filteredRevenues = revenues.filter((revenue) => {
     const matchesSearch =
-      revenue.taxpayerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      revenue.supplierNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       revenue.fullName.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
@@ -70,6 +135,17 @@ export function RevenuesList() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const toggleSelectAll = () => {
+    const pendingRevenues = paginatedRevenues.filter(r => r.submit === 'pending');
+    if (selectedRevenues.size === pendingRevenues.length) {
+      setSelectedRevenues(new Set());
+    } else {
+      setSelectedRevenues(new Set(pendingRevenues.map(r => r.id)));
+    }
+  };
+
+  const pendingCount = paginatedRevenues.filter(r => r.submit === 'pending').length;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -125,7 +201,7 @@ export function RevenuesList() {
         <div>
           <h1>Opérations de recettes</h1>
           <p className="text-muted-foreground mt-1">
-            Consultez et gérez toutes les recettes d'impôts sur le revenu.
+            Consultez et gérez toutes les recettes de prestations de services.
           </p>
         </div>
         {!isTrRegional && !isCpe && (
@@ -145,7 +221,7 @@ export function RevenuesList() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Numéro contribuable ou nom"
+                placeholder="N° dossier ou client"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -178,15 +254,54 @@ export function RevenuesList() {
         </div>
       </Card>
 
+      {/* Bulk Actions */}
+      {selectedRevenues.size > 0 && (
+        <Card className="p-4 bg-blue-50 border-blue-200">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+              {selectedRevenues.size} recette(s) sélectionnée(s)
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedRevenues(new Set())}
+              >
+                Désélectionner tout
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setIsBulkConfirmDialogOpen(true)}
+                disabled={isBulkSubmitting}
+                className="gap-2"
+              >
+                <Send className="w-4 h-4" />
+                {isBulkSubmitting ? 'Envoi en cours...' : 'Envoyer à la blockchain'}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-6">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>N° Contribuable</TableHead>
-              <TableHead>Nom Complet</TableHead>
-              <TableHead>Type d'impôt</TableHead>
+              <TableHead className="w-12">
+                {pendingCount > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={selectedRevenues.size === pendingCount && pendingCount > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                )}
+              </TableHead>
+              <TableHead>N° Dossier</TableHead>
+              <TableHead>Bénéficiaire</TableHead>
+              <TableHead>Type de prestation</TableHead>
               <TableHead>Montant</TableHead>
-              <TableHead>Statut</TableHead>
+              <TableHead>Blockchain</TableHead>
               <TableHead>Agrégation</TableHead>
               <TableHead>Date & Heure</TableHead>
               <TableHead>Créé par</TableHead>
@@ -197,16 +312,26 @@ export function RevenuesList() {
           <TableBody>
             {filteredRevenues.length === 0 ? (
               <TableRow>
-                <TableCell className="text-center py-8 text-muted-foreground" colSpan={9}>
+                <TableCell className="text-center py-8 text-muted-foreground" colSpan={10}>
                   Aucune recette trouvée
                 </TableCell>
               </TableRow>
             ) : (
               paginatedRevenues.map((revenue) => (
                 <TableRow key={revenue.id}>
-                  <TableCell>{revenue.taxpayerNumber}</TableCell>
+                  <TableCell>
+                    {revenue.submit === 'pending' && (
+                      <input
+                        type="checkbox"
+                        checked={selectedRevenues.has(revenue.id)}
+                        onChange={() => toggleRevenueSelection(revenue.id)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>{revenue.supplierNumber}</TableCell>
                   <TableCell>{revenue.fullName}</TableCell>
-                  <TableCell>{revenue.taxType}</TableCell>
+                  <TableCell>{revenue.serviceType}</TableCell>
                   <TableCell>
                     {revenue.montant.toLocaleString('fr-FR')} F CFA
                   </TableCell>
@@ -226,12 +351,29 @@ export function RevenuesList() {
                   <TableCell>{revenue.user?.fullName || "—"}</TableCell>
 
                   <TableCell>
-                    <Link to={`/revenues/${revenue.id}`}>
-                      <Button variant="ghost" size="sm" className="gap-2">
-                        <Eye className="w-4 h-4" />
-                        Détails
-                      </Button>
-                    </Link>
+                    <div className="flex flex-col gap-2">
+                      <Link to={`/revenues/${revenue.id}`}>
+                        <Button variant="ghost" size="sm" className="gap-2 w-full">
+                          <Eye className="w-4 h-4" />
+                          Détails
+                        </Button>
+                      </Link>
+                      {revenue.submit === 'pending' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-2 w-full"
+                          onClick={() => {
+                            setRevenueToSubmit(revenue.id);
+                            setIsConfirmDialogOpen(true);
+                          }}
+                          disabled={submitting === revenue.id}
+                        >
+                          <Send className="w-4 h-4" />
+                          {submitting === revenue.id ? 'Envoi...' : 'Envoyer Blockchain'}
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -261,6 +403,62 @@ export function RevenuesList() {
           </Button>
         </div>
       </Card>
+
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-sm w-full mx-auto">
+          <DialogHeader className='gap-4'>
+            <DialogTitle>Confirmer l'envoi</DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir envoyer cette recette à la blockchain ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto flex-1"
+              onClick={() => setIsConfirmDialogOpen(false)}
+            >
+              Annuler
+            </Button>
+
+            <Button
+              className="w-full sm:w-auto flex-1"
+              onClick={handleSubmitToBlockchain}
+            >
+              Confirmer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBulkConfirmDialogOpen} onOpenChange={setIsBulkConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-sm w-full mx-auto">
+          <DialogHeader className='gap-4'>
+            <DialogTitle>Confirmer l'envoi groupé</DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir envoyer {selectedRevenues.size} recette(s) à la blockchain ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto flex-1"
+              onClick={() => setIsBulkConfirmDialogOpen(false)}
+            >
+              Annuler
+            </Button>
+
+            <Button
+              className="w-full sm:w-auto flex-1"
+              onClick={handleBulkSubmit}
+            >
+              Confirmer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
